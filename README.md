@@ -1,6 +1,6 @@
 # CRM Frontend - Vue 3 + TypeScript + Pinia
 
-Frontend del sistema CRM de Citas para Negocios, desarrollado con **Vue 3**, **TypeScript**, **Vite**, **Pinia** y **TailwindCSS**.
+Frontend del sistema CRM de Citas para Negocios, desarrollado con **Vue 3** (Composition API), **TypeScript**, **Vite**, **Pinia** y **TailwindCSS**. Consume la API REST del repositorio [`crm-backend`](https://github.com/FabricioRivero/crm-backend).
 
 ## Integrantes del Grupo
 
@@ -12,82 +12,77 @@ Frontend del sistema CRM de Citas para Negocios, desarrollado con **Vue 3**, **T
 
 ## Tecnologías
 
-- **Framework:** Vue 3 (Composition API)
+- **Framework:** Vue 3 (`<script setup>`, Composition API)
 - **Lenguaje:** TypeScript
 - **Build Tool:** Vite
 - **Gestión de Estado:** Pinia
-- **Routing:** Vue Router
-- **UI Framework:** TailwindCSS
+- **Routing:** Vue Router 4
+- **UI:** TailwindCSS
 - **HTTP Client:** Axios
 
 ## Estructura del Proyecto
-crm-frontend/
-├── .gitignore
-├── .vscode/
-│   └── extensions.json
-├── env.d.ts
-├── index.html
-├── package.json
-├── package-lock.json
-├── postcss.config.cjs                      # Config PostCSS (Tailwind)
-├── tailwind.config.cjs                     # Config TailwindCSS
-├── tsconfig.json
-├── tsconfig.app.json
-├── tsconfig.node.json
-├── vite.config.ts
-├── public/
-│   └── favicon.ico
-└── src/
-    ├── main.ts                             # Punto de entrada Vue
-    ├── App.vue                             # Layout principal (nav + RouterView)
-    ├── assets/
-    │   └── main.css                        # Directivas Tailwind (@tailwind)
-    ├── components/                         # (vacío, componentes inline en views)
-    ├── router/
-    │   └── index.ts                        # Rutas: /, /clientes, /citas
-    ├── services/
-    │   └── api.ts                          # Axios: clientes y citas API
-    ├── stores/
-    │   ├── clientes.ts                     # Store Pinia - Clientes
-    │   ├── citas.ts                        # Store Pinia - Citas
-    │   └── counter.ts                      # (generado por create-vue, no usado)
-    └── views/
-        ├── HomeView.vue                    # Dashboard con estadísticas
-        ├── ClientesView.vue                # Formulario + lista de clientes
-        └── CitasView.vue                   # Formulario + lista de citas
 
+```
+src/
+├── assets/
+│   └── main.css              # Directivas Tailwind + tipografía
+├── components/
+│   ├── EstadoBadge.vue       # Badge de estado de cita (reutilizable)
+│   └── EstadoCarga.vue       # Maneja carga / error / vacío (reutilizable)
+├── router/
+│   └── index.ts
+├── services/
+│   └── api.ts                # Cliente Axios + tipos DTO + manejo de errores
+├── stores/
+│   ├── clientes.ts           # Pinia: estado carga/guardando/error
+│   └── citas.ts              # Pinia: estado carga/guardando/error
+├── views/
+│   ├── HomeView.vue          # Dashboard con estadísticas en vivo
+│   ├── ClientesView.vue      # Registro + listado de clientes
+│   └── CitasView.vue         # Agendar + listar + confirmar/completar/cancelar
+├── App.vue                   # Layout con navegación lateral (responsive)
+└── main.ts
+```
 
-## Funcionalidades
+## Manejo de estados (carga / éxito / error)
 
-| Módulo | Descripción |
-|--------|-------------|
-| **Dashboard** | Estadísticas en tiempo real (total clientes, citas pendientes/confirmadas) |
-| **Clientes** | Crear y listar clientes con validación de email único |
-| **Citas** | Agendar citas, confirmar, completar, cancelar con validación de solapamiento |
+Cada store expone `cargando`, `guardando` y `error` de forma explícita. Las vistas usan el componente `EstadoCarga` para mostrar:
+
+- **Cargando** — spinner mientras se pide la data al backend
+- **Error** — mensaje legible extraído del `DomainError` del backend (ej. "Ya existe un cliente registrado con el email...")
+- **Vacío** — mensaje cuando no hay datos todavía
+- **Éxito** — confirmación visual al registrar un cliente o agendar una cita
 
 ## Instalación y Ejecución
 
 ```bash
-# Clonar
 git clone https://github.com/FabricioRivero/crm-frontend.git
 cd crm-frontend
-
-# Instalar dependencias
 npm install
 
-# Modo desarrollo
+cp .env.example .env   # ajustar VITE_API_URL si el backend no corre en localhost:3000
+
 npm run dev
+```
 
-El frontend corre en http://localhost:5173
+El frontend corre en `http://localhost:5173`.
 
-Nota: El backend debe estar corriendo en http://localhost:3000 para que el frontend funcione correctamente.
+> **Importante:** el backend (`crm-backend`) debe estar corriendo en `http://localhost:3000` para que las vistas carguen datos.
 
-Conexión con Backend
-El frontend consume la API REST del backend mediante Axios:
+## Build para producción
 
-// Base URL configurada en src/services/api.ts
-const API_URL = 'http://localhost:3000/api';
-
-Build para producción
+```bash
 npm run build
-Genera la carpeta dist/ lista para desplegar.
+```
+
+Genera la carpeta `dist/` (verificado: compila sin errores con `vue-tsc -b && vite build`).
+
+## Conexión con el Backend
+
+```ts
+// src/services/api.ts
+export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
+export const api = axios.create({ baseURL: API_URL, ... });
+```
+
+Los tipos `ClienteDTO` y `CitaDTO` reflejan exactamente el `toPrimitives()` de las entidades del backend, para mantener el contrato del API sincronizado entre ambos repositorios.

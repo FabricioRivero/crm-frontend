@@ -1,148 +1,187 @@
-<template>
-  <div class="p-6">
-    <h1 class="text-3xl font-bold text-gray-800 mb-6">Gestión de Citas</h1>
-
-    <!-- Formulario -->
-    <div class="bg-white rounded-lg shadow p-6 mb-6">
-      <h2 class="text-xl font-bold mb-4">Nueva Cita</h2>
-      <form @submit.prevent="agendarCita" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">ID Cliente</label>
-          <input v-model="form.clienteId" type="text" required class="w-full border rounded-lg px-3 py-2" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">ID Empleado</label>
-          <input v-model="form.empleadoId" type="text" required class="w-full border rounded-lg px-3 py-2" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">ID Servicio</label>
-          <input v-model="form.servicioId" type="text" required class="w-full border rounded-lg px-3 py-2" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Fecha y Hora</label>
-          <input v-model="form.fechaHora" type="datetime-local" required class="w-full border rounded-lg px-3 py-2" />
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Duración (minutos)</label>
-          <input v-model.number="form.duracionMinutos" type="number" min="15" required class="w-full border rounded-lg px-3 py-2" />
-        </div>
-        <div class="md:col-span-2">
-          <button
-            type="submit"
-            :disabled="store.cargando"
-            class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            {{ store.cargando ? 'Agendando...' : 'Agendar Cita' }}
-          </button>
-        </div>
-      </form>
-      <div v-if="store.error" class="mt-3 text-red-600">{{ store.error }}</div>
-      <div v-if="exito" class="mt-3 text-green-600">Cita agendada exitosamente</div>
-    </div>
-
-    <!-- Lista -->
-    <div class="bg-white rounded-lg shadow p-6">
-      <h2 class="text-xl font-bold mb-4">Lista de Citas</h2>
-      <div v-if="store.cargando" class="text-gray-500">Cargando...</div>
-      <div v-else-if="store.citas.length === 0" class="text-gray-500">No hay citas registradas</div>
-      <div v-else class="space-y-3">
-        <div
-          v-for="cita in store.citas"
-          :key="cita.id"
-          class="border rounded-lg p-4"
-          :class="{
-            'border-yellow-400 bg-yellow-50': cita.estado === 'PENDIENTE',
-            'border-green-400 bg-green-50': cita.estado === 'CONFIRMADA',
-            'border-gray-400 bg-gray-50': cita.estado === 'COMPLETADA',
-            'border-red-400 bg-red-50': cita.estado === 'CANCELADA',
-          }"
-        >
-          <div class="flex justify-between items-start">
-            <div>
-              <p class="font-semibold">Cita #{{ cita.id.slice(0, 8) }}</p>
-              <p class="text-sm text-gray-600">Cliente: {{ cita.clienteId }} | Empleado: {{ cita.empleadoId }}</p>
-              <p class="text-sm text-gray-600">{{ new Date(cita.fechaHora).toLocaleString() }}</p>
-            </div>
-            <span class="px-3 py-1 rounded-full text-sm font-medium" :class="estadoClase(cita.estado)">
-              {{ cita.estado }}
-            </span>
-          </div>
-          <div v-if="cita.estado === 'PENDIENTE' || cita.estado === 'CONFIRMADA'" class="mt-3 flex gap-2">
-            <button
-              v-if="cita.estado === 'PENDIENTE'"
-              @click="cambiarEstado(cita.id, 'confirmar')"
-              class="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
-            >
-              Confirmar
-            </button>
-            <button
-              v-if="cita.estado === 'CONFIRMADA'"
-              @click="cambiarEstado(cita.id, 'completar')"
-              class="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
-            >
-              Completar
-            </button>
-            <button
-              @click="cambiarEstado(cita.id, 'cancelar')"
-              class="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useCitasStore } from '@/stores/citas'
+import { onMounted, reactive } from 'vue';
+import { useCitasStore } from '../stores/citas';
+import { useClientesStore } from '../stores/clientes';
+import EstadoBadge from '../components/EstadoBadge.vue';
+import EstadoCarga from '../components/EstadoCarga.vue';
 
-const store = useCitasStore()
-const exito = ref(false)
+const citasStore = useCitasStore();
+const clientesStore = useClientesStore();
 
-const form = ref({
+const form = reactive({
   clienteId: '',
   empleadoId: '',
   servicioId: '',
-  fechaHora: '',
+  fecha: '',
+  hora: '',
   duracionMinutos: 30,
-})
+});
 
 onMounted(() => {
-  store.cargarCitas()
-})
+  citasStore.cargarCitas();
+  clientesStore.cargarClientes();
+});
 
-async function agendarCita() {
-  exito.value = false
-  try {
-    await store.agendarCita({
-      ...form.value,
-      fechaHora: new Date(form.value.fechaHora).toISOString(),
-    })
-    exito.value = true
-    form.value = { clienteId: '', empleadoId: '', servicioId: '', fechaHora: '', duracionMinutos: 30 }
-  } catch (e) {
-    // Error ya está en store.error
+async function onSubmit() {
+  if (!form.fecha || !form.hora) return;
+  const fechaHora = new Date(`${form.fecha}T${form.hora}`).toISOString();
+
+  const ok = await citasStore.agendarCita({
+    clienteId: form.clienteId,
+    empleadoId: form.empleadoId || 'emp-general',
+    servicioId: form.servicioId || 'srv-general',
+    fechaHora,
+    duracionMinutos: Number(form.duracionMinutos),
+  });
+
+  if (ok) {
+    form.fecha = '';
+    form.hora = '';
   }
 }
 
-async function cambiarEstado(id: string, accion: 'confirmar' | 'completar' | 'cancelar') {
-  try {
-    await store.cambiarEstado(id, accion)
-  } catch (e) {
-    // Error ya está en store.error
-  }
+function formatearFecha(iso: string) {
+  return new Date(iso).toLocaleString('es-BO', {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
-function estadoClase(estado: string) {
-  const clases: Record<string, string> = {
-    PENDIENTE: 'bg-yellow-200 text-yellow-800',
-    CONFIRMADA: 'bg-green-200 text-green-800',
-    COMPLETADA: 'bg-gray-200 text-gray-800',
-    CANCELADA: 'bg-red-200 text-red-800',
-  }
-  return clases[estado] || 'bg-gray-200'
+async function accion(id: string, accion: 'confirmar' | 'completar' | 'cancelar') {
+  await citasStore.cambiarEstado(id, accion);
 }
+
+const siguienteAccion: Record<string, { texto: string; accion: 'confirmar' | 'completar' | 'cancelar'; clase: string } | null> = {
+  PENDIENTE: { texto: 'Confirmar', accion: 'confirmar', clase: 'bg-blue-600 hover:bg-blue-700' },
+  CONFIRMADA: { texto: 'Completar', accion: 'completar', clase: 'bg-emerald-600 hover:bg-emerald-700' },
+  COMPLETADA: null,
+  CANCELADA: null,
+};
 </script>
+
+<template>
+  <div class="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[minmax(0,320px)_1fr]">
+    <section class="h-fit rounded-xl border border-slate-200 bg-white p-5">
+      <h2 class="font-display text-sm font-semibold text-slate-900">Agendar cita</h2>
+      <p class="mt-1 text-xs text-slate-400">Valida automáticamente cruces de horario.</p>
+
+      <form class="mt-4 space-y-3" @submit.prevent="onSubmit">
+        <div>
+          <label class="mb-1 block text-xs font-medium text-slate-600">Cliente</label>
+          <select
+            v-model="form.clienteId"
+            required
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+          >
+            <option value="" disabled>Selecciona un cliente</option>
+            <option v-for="c in clientesStore.clientes" :key="c.id" :value="c.id">
+              {{ c.nombre }} {{ c.apellido }}
+            </option>
+          </select>
+          <p v-if="clientesStore.clientes.length === 0" class="mt-1 text-[11px] text-amber-600">
+            Registra un cliente primero en la sección Clientes.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="mb-1 block text-xs font-medium text-slate-600">Fecha</label>
+            <input
+              v-model="form.fecha"
+              required
+              type="date"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            />
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-slate-600">Hora</label>
+            <input
+              v-model="form.hora"
+              required
+              type="time"
+              class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label class="mb-1 block text-xs font-medium text-slate-600">Duración (min)</label>
+          <input
+            v-model.number="form.duracionMinutos"
+            type="number"
+            min="15"
+            step="15"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+          />
+        </div>
+
+        <p v-if="citasStore.error" class="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">
+          {{ citasStore.error }}
+        </p>
+
+        <button
+          type="submit"
+          :disabled="citasStore.guardando || !form.clienteId"
+          class="w-full rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {{ citasStore.guardando ? 'Agendando…' : 'Agendar cita' }}
+        </button>
+      </form>
+    </section>
+
+    <section class="rounded-xl border border-slate-200 bg-white">
+      <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <h2 class="font-display text-sm font-semibold text-slate-900">
+          Citas ({{ citasStore.total }})
+        </h2>
+      </div>
+
+      <div class="px-5 py-4">
+        <EstadoCarga
+          :cargando="citasStore.cargando"
+          :error="citasStore.citas.length === 0 ? citasStore.error : null"
+          :vacio="!citasStore.cargando && !citasStore.error && citasStore.citas.length === 0"
+          mensaje-vacio="No hay citas agendadas todavía."
+        >
+          <ul class="divide-y divide-slate-100">
+            <li
+              v-for="cita in citasStore.ordenadasPorFecha"
+              :key="cita.id"
+              class="flex items-center justify-between gap-3 py-3"
+            >
+              <div class="min-w-0 flex-1">
+                <p class="text-sm font-medium text-slate-800">{{ formatearFecha(cita.fechaHora) }}</p>
+                <p class="text-xs text-slate-400">
+                  Cliente {{ clientesStore.porId(cita.clienteId)?.nombre ?? cita.clienteId.slice(0, 8) }}
+                </p>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <EstadoBadge :estado="cita.estado" />
+
+                <button
+                  v-if="siguienteAccion[cita.estado]"
+                  class="rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors"
+                  :class="siguienteAccion[cita.estado]!.clase"
+                  @click="accion(cita.id, siguienteAccion[cita.estado]!.accion)"
+                >
+                  {{ siguienteAccion[cita.estado]!.texto }}
+                </button>
+                <button
+                  v-if="cita.estado === 'PENDIENTE' || cita.estado === 'CONFIRMADA'"
+                  class="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50"
+                  @click="accion(cita.id, 'cancelar')"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </li>
+          </ul>
+        </EstadoCarga>
+      </div>
+    </section>
+  </div>
+</template>

@@ -1,43 +1,60 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:3000/api';
+export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
 
 export const api = axios.create({
   baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  headers: { 'Content-Type': 'application/json' },
 });
 
-// Clientes
-export const clienteService = {
-  async crear(datos: { nombre: string; apellido: string; email: string; telefono: string; tipo?: string }) {
-    const response = await api.post('/clientes', datos);
-    return response.data;
-  },
-  async listar() {
-    const response = await api.get('/clientes');
-    return response.data;
-  },
-  async obtenerPorId(id: string) {
-    const response = await api.get(`/clientes/${id}`);
-    return response.data;
-  },
-};
+// Tipos espejo de los `toPrimitives()` del backend (contrato del API)
+export interface ClienteDTO {
+  id: string;
+  nombre: string;
+  apellido: string;
+  email: string;
+  telefono: string;
+  tipo: 'REGULAR' | 'VIP' | 'NUEVO';
+  activo: boolean;
+  historialCitas: string[];
+}
 
-// Citas
-export const citaService = {
-  async agendar(datos: { clienteId: string; empleadoId: string; servicioId: string; fechaHora: string; duracionMinutos: number; notas?: string }) {
-    const response = await api.post('/citas', datos);
-    return response.data;
-  },
-  async listar(clienteId?: string) {
-    const params = clienteId ? { clienteId } : {};
-    const response = await api.get('/citas', { params });
-    return response.data;
-  },
-  async cambiarEstado(id: string, accion: 'confirmar' | 'completar' | 'cancelar') {
-    const response = await api.patch(`/citas/${id}/estado`, { accion });
-    return response.data;
-  },
-};
+export interface NuevoClienteDTO {
+  nombre: string;
+  apellido: string;
+  email: string;
+  telefono: string;
+  tipo?: 'REGULAR' | 'VIP' | 'NUEVO';
+}
+
+export type EstadoCitaDTO = 'PENDIENTE' | 'CONFIRMADA' | 'COMPLETADA' | 'CANCELADA';
+
+export interface CitaDTO {
+  id: string;
+  clienteId: string;
+  empleadoId: string;
+  servicioId: string;
+  fechaHora: string;
+  estado: EstadoCitaDTO;
+  notas: string;
+}
+
+export interface NuevaCitaDTO {
+  clienteId: string;
+  empleadoId: string;
+  servicioId: string;
+  fechaHora: string;
+  duracionMinutos: number;
+}
+
+/** Extrae un mensaje de error legible desde una respuesta de Axios/DomainError del backend */
+export function extraerMensajeError(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    const mensaje = error.response?.data?.error;
+    if (mensaje) return mensaje;
+    if (error.code === 'ERR_NETWORK') {
+      return 'No se pudo conectar con el servidor. ¿Está corriendo el backend en ' + API_URL + '?';
+    }
+  }
+  return 'Ocurrió un error inesperado';
+}

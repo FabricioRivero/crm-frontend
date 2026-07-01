@@ -1,60 +1,54 @@
-import { ref, computed } from 'vue';
 import { defineStore } from 'pinia';
-import { clienteService } from '@/services/api';
+import { api, extraerMensajeError, type ClienteDTO, type NuevoClienteDTO } from '../services/api';
 
-export interface Cliente {
-  id: string;
-  nombre: string;
-  apellido: string;
-  email: string;
-  telefono: string;
-  tipo: string;
-  activo: boolean;
-  historialCitas: string[];
+interface ClientesState {
+  clientes: ClienteDTO[];
+  cargando: boolean;
+  guardando: boolean;
+  error: string | null;
 }
 
-export const useClientesStore = defineStore('clientes', () => {
-  const clientes = ref<Cliente[]>([]);
-  const cargando = ref(false);
-  const error = ref<string | null>(null);
+export const useClientesStore = defineStore('clientes', {
+  state: (): ClientesState => ({
+    clientes: [],
+    cargando: false,
+    guardando: false,
+    error: null,
+  }),
 
-  const totalClientes = computed(() => clientes.value.length);
+  getters: {
+    total: (state) => state.clientes.length,
+    clientesVip: (state) => state.clientes.filter((c) => c.tipo === 'VIP').length,
+    porId: (state) => (id: string) => state.clientes.find((c) => c.id === id),
+  },
 
-  async function cargarClientes() {
-    cargando.value = true;
-    error.value = null;
-    try {
-      clientes.value = await clienteService.listar();
-    } catch (e: any) {
-      console.error('Error cargando clientes:', e);
-      error.value = e.response?.data?.error || e.message || 'Error al cargar clientes';
-    } finally {
-      cargando.value = false;
-    }
-  }
+  actions: {
+    async cargarClientes() {
+      this.cargando = true;
+      this.error = null;
+      try {
+        const { data } = await api.get<ClienteDTO[]>('/clientes');
+        this.clientes = data;
+      } catch (err) {
+        this.error = extraerMensajeError(err);
+      } finally {
+        this.cargando = false;
+      }
+    },
 
-  async function crearCliente(datos: { nombre: string; apellido: string; email: string; telefono: string }) {
-    cargando.value = true;
-    error.value = null;
-    try {
-      const nuevo = await clienteService.crear(datos);
-      clientes.value.push(nuevo);
-      return nuevo;
-    } catch (e: any) {
-      console.error('Error creando cliente:', e);
-      error.value = e.response?.data?.error || e.message || 'Error al crear cliente';
-      throw error.value;
-    } finally {
-      cargando.value = false;
-    }
-  }
-
-  return {
-    clientes,
-    cargando,
-    error,
-    totalClientes,
-    cargarClientes,
-    crearCliente,
-  };
+    async registrarCliente(dto: NuevoClienteDTO): Promise<boolean> {
+      this.guardando = true;
+      this.error = null;
+      try {
+        const { data } = await api.post<ClienteDTO>('/clientes', dto);
+        this.clientes.unshift(data);
+        return true;
+      } catch (err) {
+        this.error = extraerMensajeError(err);
+        return false;
+      } finally {
+        this.guardando = false;
+      }
+    },
+  },
 });
